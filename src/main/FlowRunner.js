@@ -5,20 +5,30 @@ import Logger from './Logger';
 class FlowRunner {
     constructor() {
         this.triggerManager = new TriggerManager(this.handleTriggerFire.bind(this));
-        this.runningFlows = new Set();
+        // Map<flowId, Set<triggerNodeId>>
+        this.runningFlows = new Map();
     }
 
     async run(flow) {
-        Logger.info(`Initializing flow triggers for: ${flow.name || 'Unnamed Flow'}`);
+        const flowId = flow.id || flow.name || 'default';
+        Logger.info(`Initializing flow triggers for: ${flow.name || 'Unnamed Flow'} (ID: ${flowId})`);
+        
+        // Stop existing instance of this flow to prevent duplicate triggers
+        this.stop(flowId);
+
         const { nodes } = flow;
 
         // Register all triggers in the flow
         const triggers = nodes.filter(n => n.type === 'trigger');
+        const registeredNodeIds = new Set();
 
         for (const trigger of triggers) {
             this.triggerManager.register(trigger, flow);
+            registeredNodeIds.add(trigger.id);
         }
         
+        this.runningFlows.set(flowId, registeredNodeIds);
+
         return { success: true, triggerCount: triggers.length };
     }
 
@@ -60,6 +70,20 @@ class FlowRunner {
 
     stop(id) {
         // Stop all listeners associated with this flow
+        if (this.runningFlows.has(id)) {
+            const nodeIds = this.runningFlows.get(id);
+            for (const nodeId of nodeIds) {
+                this.triggerManager.clear(nodeId);
+            }
+            this.runningFlows.delete(id);
+            Logger.info(`Stopped flow: ${id}`);
+        }
+    }
+
+    stopAll() {
+        this.triggerManager.clearAll();
+        this.runningFlows.clear();
+        Logger.info('Stopped all flows');
     }
 }
 

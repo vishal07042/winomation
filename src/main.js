@@ -88,8 +88,13 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    FlowRunner.stopAll();
     app.quit();
   }
+});
+
+app.on('will-quit', () => {
+    FlowRunner.stopAll();
 });
 
 // --- Persistence Helpers ---
