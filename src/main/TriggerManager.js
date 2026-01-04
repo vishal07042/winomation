@@ -1,4 +1,5 @@
-const { exec } = require('child_process');
+import { exec } from 'child_process';
+import Logger from './Logger';
 
 class TriggerManager {
     constructor(onTriggerFire) {
@@ -8,7 +9,7 @@ class TriggerManager {
 
     register(node, flow) {
         const { type, params } = node.data;
-        console.log(`[TriggerManager] Registering: ${type}`);
+        Logger.info(`Registering Trigger: ${type}`);
 
         switch (type) {
             case 'interval':
@@ -31,9 +32,7 @@ class TriggerManager {
                 break;
             
             case 'window_focus':
-                // For window titles, we use a slightly faster polling for better UX
                 const winPoll = setInterval(() => {
-                    // This is a simplified check; in a full app we'd use a native helper for focused window
                     exec(`powershell -Command "Get-Process | Where-Object {$_.MainWindowTitle -like '*${params.title}*'} | Select-Object -Property MainWindowTitle"`, (err, stdout) => {
                         if (stdout.trim().length > 0) {
                             this.onTriggerFire(node, flow.nodes, flow.edges);
@@ -44,7 +43,7 @@ class TriggerManager {
                 break;
             
             default:
-                console.warn(`Trigger type ${type} Registration not fully implemented`);
+                Logger.warn(`Trigger type ${type} registration not fully implemented.`);
         }
     }
 
@@ -56,4 +55,4 @@ class TriggerManager {
     }
 }
 
-module.exports = TriggerManager;
+export default TriggerManager;

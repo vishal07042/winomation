@@ -1,5 +1,6 @@
-const engine = require('./engine');
-const TriggerManager = require('./TriggerManager');
+import engine from './engine';
+import TriggerManager from './TriggerManager';
+import Logger from './Logger';
 
 class FlowRunner {
     constructor() {
@@ -8,7 +9,7 @@ class FlowRunner {
     }
 
     async run(flow) {
-        console.log('[FlowRunner] Initializing flow triggers...');
+        Logger.info(`Initializing flow triggers for: ${flow.name || 'Unnamed Flow'}`);
         const { nodes } = flow;
 
         // Register all triggers in the flow
@@ -22,7 +23,7 @@ class FlowRunner {
     }
 
     async handleTriggerFire(triggerNode, allNodes, allEdges) {
-        console.log(`[FlowRunner] Trigger fired event: ${triggerNode.data.label}`);
+        Logger.info(`Flow triggered by: ${triggerNode.data.label || triggerNode.type}`);
         
         let currentNodes = this.getNextNodes(triggerNode.id, allNodes, allEdges);
 
@@ -41,8 +42,7 @@ class FlowRunner {
                         nextNodes.push(...this.getNextNodes(node.id, allNodes, allEdges));
                     }
                 } catch (err) {
-                    console.error(`Error executing node ${node.id}:`, err);
-                    // In a production system, we'd check error policy here
+                    Logger.error(`Error executing node ${node.id}: ${err.message}`);
                 }
             }
 
@@ -60,9 +60,7 @@ class FlowRunner {
 
     stop(id) {
         // Stop all listeners associated with this flow
-        // For now, simpler to stop individual nodes if we had that mapping
-        // In a real system, we'd map flowId -> nodeIds
     }
 }
 
-module.exports = new FlowRunner();
+export default new FlowRunner();

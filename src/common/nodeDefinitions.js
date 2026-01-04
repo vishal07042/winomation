@@ -126,12 +126,37 @@ export const CATALOG = {
             engine: 'node' 
         },
         { 
+            type: 'close_window', 
+            category: CATEGORIES.SYSTEM, 
+            label: 'Close Window', 
+            icon: '❌', 
+            params: { title: '' }, 
+            paramTypes: { title: PARAM_TYPES.TEXT }
+        },
+        { 
+            type: 'minimize_window', 
+            category: CATEGORIES.SYSTEM, 
+            label: 'Minimize Window', 
+            icon: '➖', 
+            params: { title: '' }, 
+            paramTypes: { title: PARAM_TYPES.TEXT }
+        },
+        { 
             type: 'notification', 
             category: CATEGORIES.SYSTEM, 
             label: 'Show Notification', 
             icon: '🔔', 
             params: { title: 'Winomation', message: '' }, 
             paramTypes: { title: PARAM_TYPES.TEXT, message: PARAM_TYPES.TEXT },
+            engine: 'node' 
+        },
+        { 
+            type: 'toast', 
+            category: CATEGORIES.SYSTEM, 
+            label: 'Show Toast', 
+            icon: '🍞', 
+            params: { message: 'Hello from Winomation!' }, 
+            paramTypes: { message: PARAM_TYPES.TEXT },
             engine: 'node' 
         }
     ]
