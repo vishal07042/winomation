@@ -51,6 +51,14 @@ export const CATALOG = {
             paramTypes: { title: PARAM_TYPES.TEXT }
         },
         { 
+            type: 'window_title_contains', 
+            category: CATEGORIES.SYSTEM, 
+            label: 'Window Title Contains', 
+            icon: '🔍', 
+            params: { word: '' },
+            paramTypes: { word: PARAM_TYPES.TEXT }
+        },
+        { 
             type: 'net_status', 
             category: CATEGORIES.SYSTEM, 
             label: 'Network Change', 
@@ -124,6 +132,22 @@ export const CATALOG = {
             params: { processName: '' }, 
             paramTypes: { processName: PARAM_TYPES.PROCESS },
             engine: 'node' 
+        },
+        { 
+            type: 'close_window', 
+            category: CATEGORIES.SYSTEM, 
+            label: 'Close Window', 
+            icon: '❌', 
+            params: { title: '' }, 
+            paramTypes: { title: PARAM_TYPES.TEXT }
+        },
+        { 
+            type: 'minimize_window', 
+            category: CATEGORIES.SYSTEM, 
+            label: 'Minimize Window', 
+            icon: '➖', 
+            params: { title: '' }, 
+            paramTypes: { title: PARAM_TYPES.TEXT }
         },
         { 
             type: 'notification', 

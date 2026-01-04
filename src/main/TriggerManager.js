@@ -1,4 +1,5 @@
-const { exec } = require('child_process');
+import { exec } from 'child_process';
+import Logger from './Logger';
 
 class TriggerManager {
     constructor(onTriggerFire) {
@@ -8,11 +9,12 @@ class TriggerManager {
 
     register(node, flow) {
         const { type, params } = node.data;
-        console.log(`[TriggerManager] Registering: ${type}`);
+        Logger.info(`Registering Trigger: ${type} with params: ${JSON.stringify(params)}`);
 
         switch (type) {
             case 'interval':
                 const timer = setInterval(() => {
+                    Logger.info(`Interval trigger fired for node ${node.id}`);
                     this.onTriggerFire(node, flow.nodes, flow.edges);
                 }, params.minutes * 60 * 1000);
                 this.activeListeners.set(node.id, timer);
@@ -23,6 +25,7 @@ class TriggerManager {
                 const poll = setInterval(() => {
                     exec(`tasklist /FI "IMAGENAME eq ${procName}"`, (err, stdout) => {
                         if (stdout.toLowerCase().includes(procName.toLowerCase())) {
+                            Logger.info(`App launch detected: ${procName}`);
                             this.onTriggerFire(node, flow.nodes, flow.edges);
                         }
                     });
@@ -31,11 +34,15 @@ class TriggerManager {
                 break;
             
             case 'window_focus':
+            case 'window_title_contains':
                 // For window titles, we use a slightly faster polling for better UX
+                const targetTitle = type === 'window_title_contains' ? params.word : params.title;
                 const winPoll = setInterval(() => {
-                    // This is a simplified check; in a full app we'd use a native helper for focused window
-                    exec(`powershell -Command "Get-Process | Where-Object {$_.MainWindowTitle -like '*${params.title}*'} | Select-Object -Property MainWindowTitle"`, (err, stdout) => {
+                    // Use PowerShell to get window titles
+                    const cmd = `powershell -Command "Get-Process | Where-Object {$_.MainWindowTitle -like '*${targetTitle}*'} | Select-Object -Property MainWindowTitle"`;
+                    exec(cmd, (err, stdout) => {
                         if (stdout.trim().length > 0) {
+                            Logger.info(`Window title match detected: ${targetTitle}`);
                             this.onTriggerFire(node, flow.nodes, flow.edges);
                         }
                     });
@@ -44,7 +51,7 @@ class TriggerManager {
                 break;
             
             default:
-                console.warn(`Trigger type ${type} Registration not fully implemented`);
+                Logger.warn(`Trigger type ${type} Registration not fully implemented`);
         }
     }
 
@@ -56,4 +63,4 @@ class TriggerManager {
     }
 }
 
-module.exports = TriggerManager;
+export default TriggerManager;

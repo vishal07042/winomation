@@ -6,4 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSystemStatus: () => ipcRenderer.invoke('get-system-status'),
     getRunningProcesses: () => ipcRenderer.invoke('get-running-processes'),
     getInstalledApps: () => ipcRenderer.invoke('get-installed-apps'),
+    onLog: (callback) => ipcRenderer.on('new-log', (event, log) => callback(log)),
+    getLogs: () => ipcRenderer.invoke('get-logs'),
+    clearLogs: () => ipcRenderer.invoke('clear-logs'),
 });

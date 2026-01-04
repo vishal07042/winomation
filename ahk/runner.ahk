@@ -1,29 +1,32 @@
-; Winomation AHK Helper (v2-ish logic)
-#Requires AutoHotkey v1.1+
-#NoEnv
-SendMode Input
-SetWorkingDir %A_ScriptDir%
+#Requires AutoHotkey v2.0
+SetTitleMatchMode 2
 
-; This helper receives a JSON payload as the first argument
-payload := A_Args[1]
-
-; Simple JSON-to-Command Dispatcher
-if (InStr(payload, """type"":""send_keys""")) {
-    RegExMatch(payload, """keys"":""([^""]+)""", match)
-    keys := match1
-    Send, %keys%
-} else if (InStr(payload, """type"":""mouse_click""")) {
-    RegExMatch(payload, """x"":(\d+),""y"":(\d+),""button"":""([^""]+)""", match)
-    x := match1
-    y := match2
-    btn := match3
-    Click, %x%, %y%, %btn%
-} else if (InStr(payload, """type"":""window_move""")) {
-    RegExMatch(payload, """title"":""([^""]+)"",""x"":(\d+),""y"":(\d+),""w"":(\d+),""h"":(\d+)""", match)
-    title := match1
-    WinMove, %title%, , match2, match3, match4, match5
+; Simple Command Dispatcher using discrete arguments
+if (A_Args.Length < 1) {
+    ExitApp
 }
 
-; Return success to Node.js
-FileAppend, {"success":true}, *
+cmdType := A_Args[1]
+
+try {
+    if (cmdType == "send_keys") {
+        Send(A_Args[2])
+    } else if (cmdType == "mouse_click") {
+        Click(A_Args[2], A_Args[3], A_Args[4])
+    } else if (cmdType == "window_move") {
+        ; WinMove(X, Y, Width, Height, WinTitle)
+        WinMove(A_Args[3], A_Args[4], A_Args[5], A_Args[6], A_Args[2])
+    } else if (cmdType == "window_close") {
+        if WinExist(A_Args[2]) {
+            WinClose(A_Args[2])
+        }
+    } else if (cmdType == "window_minimize") {
+        if WinExist(A_Args[2]) {
+            WinMinimize(A_Args[2])
+        }
+    }
+} catch Error as e {
+    FileAppend("Error: " . e.Message, "*")
+}
+
 ExitApp

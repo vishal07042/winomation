@@ -361,6 +361,30 @@ const FlowEditor = () => {
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
     const [selectedNodeId, setSelectedNodeId] = useState(null);
+    const [logs, setLogs] = useState([]);
+    const [showLogs, setShowLogs] = useState(true);
+
+    useEffect(() => {
+        if (window.electronAPI) {
+            window.electronAPI.getLogs().then(setLogs);
+            window.electronAPI.onLog((log) => {
+                setLogs((prev) => [...prev.slice(-99), log]);
+            });
+        }
+    }, []);
+
+    const clearLogs = () => {
+        if (window.electronAPI) {
+            window.electronAPI.clearLogs();
+            setLogs([]);
+        }
+    };
+
+    // Resizable UI State
+    const [sidebarWidth, setSidebarWidth] = useState(280);
+    const [settingsWidth, setSettingsWidth] = useState(320);
+    const [isResizingLeft, setIsResizingLeft] = useState(false);
+    const [isResizingRight, setIsResizingRight] = useState(false);
 
     const nodeTypes = useMemo(() => ({
         trigger: TriggerNode,
@@ -373,6 +397,11 @@ const FlowEditor = () => {
     const onSelectionChange = useCallback((params) => {
         setSelectedNodeId(params.nodes[0]?.id || null);
     }, []);
+
+    const onNodesDelete = useCallback((deleted) => {
+        setEdges((eds) => eds.filter((edge) => !deleted.some((node) => node.id === edge.source || node.id === edge.target)));
+        setSelectedNodeId(null);
+    }, [setEdges]);
 
     const onUpdateNode = useCallback((id, newData, isDelete) => {
         if (isDelete) {
@@ -423,6 +452,33 @@ const FlowEditor = () => {
         [reactFlowInstance, setNodes]
     );
 
+    // Resizer Logic
+    const startResizingLeft = useCallback(() => setIsResizingLeft(true), []);
+    const startResizingRight = useCallback(() => setIsResizingRight(true), []);
+    const stopResizing = useCallback(() => {
+        setIsResizingLeft(false);
+        setIsResizingRight(false);
+    }, []);
+
+    const onMouseMove = useCallback((e) => {
+        if (isResizingLeft) {
+            setSidebarWidth(Math.max(200, Math.min(500, e.clientX)));
+        } else if (isResizingRight) {
+            setSettingsWidth(Math.max(250, Math.min(600, window.innerWidth - e.clientX)));
+        }
+    }, [isResizingLeft, isResizingRight]);
+
+    useEffect(() => {
+        if (isResizingLeft || isResizingRight) {
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', stopResizing);
+        }
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [isResizingLeft, isResizingRight, onMouseMove, stopResizing]);
+
     const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId), [nodes, selectedNodeId]);
 
     const runWorkflow = () => {
@@ -433,59 +489,182 @@ const FlowEditor = () => {
     };
 
     return (
-        <div style={{ display: 'flex', width: '100vw', height: '100vh', background: '#121212', color: '#fff' }}>
-            <Sidebar />
-            <div ref={reactFlowWrapper} style={{ flexGrow: 1, height: '100%', position: 'relative' }}>
-                <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onInit={setReactFlowInstance}
-                    onDrop={onDrop}
-                    onDragOver={onDragOver}
-                    onSelectionChange={onSelectionChange}
-                    nodeTypes={nodeTypes}
-                    fitView
-                    snapToGrid
-                    snapGrid={[15, 15]}
-                >
-                    <Panel position="top-right" style={{ display: 'flex', gap: '10px' }}>
-                        <button 
-                            onClick={runWorkflow}
-                            style={{ 
-                                background: '#3182ce', 
-                                border: 'none', 
-                                color: '#fff', 
-                                padding: '10px 24px', 
-                                borderRadius: '8px', 
-                                cursor: 'pointer', 
-                                fontWeight: 600,
-                                boxShadow: '0 4px 12px rgba(49, 130, 206, 0.4)',
-                                transition: 'transform 0.1s'
-                            }}
-                            onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-                            onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                            🚀 RUN AUTOMATION
-                        </button>
-                    </Panel>
-                    <Background color="#222" gap={20} variant="dots" />
-                    <Controls style={{ background: '#1a1a1a', border: '1px solid #333' }} />
-                    <MiniMap 
-                        maskColor="rgba(0,0,0,0.7)" 
-                        style={{ background: '#1a1a1a', border: '1px solid #333' }}
-                        nodeStrokeColor={(n) => {
-                            if (n.type === 'trigger') return '#ff4d4d';
-                            if (n.type === 'condition') return '#ffad33';
-                            return '#33adff';
-                        }}
-                        nodeColor="#222"
-                    />
-                </ReactFlow>
+        <div 
+            style={{ 
+                display: 'flex', 
+                width: '100vw', 
+                height: '100vh', 
+                background: '#0a0a0a', 
+                color: '#fff', 
+                cursor: (isResizingLeft || isResizingRight) ? 'col-resize' : 'default',
+                userSelect: (isResizingLeft || isResizingRight) ? 'none' : 'auto'
+            }}
+        >
+            {/* Sidebar with Visible Resizer */}
+            <div style={{ width: sidebarWidth, display: 'flex', position: 'relative', borderRight: '1px solid #222' }}>
+                <div style={{ flexGrow: 1, minWidth: 0, height: '100%' }}>
+                    <Sidebar />
+                </div>
+                {/* Visual line and hidden handle */}
+                <div 
+                    onMouseDown={startResizingLeft}
+                    style={{ 
+                        position: 'absolute',
+                        right: '-5px',
+                        top: 0,
+                        bottom: 0,
+                        width: '10px',
+                        cursor: 'col-resize',
+                        zIndex: 100,
+                        backgroundColor: 'transparent'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(49, 130, 206, 0.2)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                />
             </div>
-            <NodeSettings selectedNode={selectedNode} onUpdate={onUpdateNode} />
+
+            {/* Main Editor Canvas */}
+            <div ref={reactFlowWrapper} style={{ flexGrow: 1, height: '100%', position: 'relative', background: '#0e0e0e', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flexGrow: 1, minHeight: 0 }}>
+                    <ReactFlow
+                        nodes={nodes}
+                        edges={edges}
+                        onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={onConnect}
+                        onInit={setReactFlowInstance}
+                        onDrop={onDrop}
+                        onDragOver={onDragOver}
+                        onSelectionChange={onSelectionChange}
+                        onNodesDelete={onNodesDelete}
+                        nodeTypes={nodeTypes}
+                        fitView
+                        snapToGrid
+                        snapGrid={[15, 15]}
+                    >
+                        <Panel position="top-right" style={{ display: 'flex', gap: '10px' }}>
+                            <button 
+                                onClick={runWorkflow}
+                                className="run-btn"
+                                style={{ 
+                                    background: '#3182ce', 
+                                    border: 'none', 
+                                    color: '#fff', 
+                                    padding: '10px 24px', 
+                                    borderRadius: '8px', 
+                                    cursor: 'pointer', 
+                                    fontWeight: 700,
+                                    fontSize: '12px',
+                                    boxShadow: '0 0 20px rgba(49, 130, 206, 0.3)',
+                                    transition: 'all 0.2s',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                }}
+                            >
+                                🚀 Start Workflow
+                            </button>
+                        </Panel>
+                        <Background color="#1a1a1a" gap={20} variant="dots" />
+                        <Controls style={{ background: '#1a1a1a', border: '1px solid #333' }} />
+                        <MiniMap 
+                            maskColor="rgba(0,0,0,0.8)" 
+                            style={{ background: '#1a1a1a', border: '1px solid #333' }}
+                            nodeStrokeColor={(n) => {
+                                if (n.type === 'trigger') return '#ff4d4d';
+                                if (n.type === 'condition') return '#ffad33';
+                                return '#33adff';
+                            }}
+                            nodeColor="#222"
+                        />
+                    </ReactFlow>
+                </div>
+
+                {/* Log Panel */}
+                {showLogs && (
+                    <div style={{ 
+                        height: '200px', 
+                        background: '#111', 
+                        borderTop: '1px solid #222', 
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        fontSize: '12px',
+                        fontFamily: 'monospace'
+                    }}>
+                        <div style={{ 
+                            padding: '8px 16px', 
+                            background: '#151515', 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            borderBottom: '1px solid #222'
+                        }}>
+                            <span style={{ color: '#888', fontWeight: 600, fontSize: '10px', textTransform: 'uppercase' }}>System Logs</span>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button onClick={clearLogs} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '10px' }}>CLEAR</button>
+                                <button onClick={() => setShowLogs(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '10px' }}>HIDE</button>
+                            </div>
+                        </div>
+                        <div style={{ flexGrow: 1, overflowY: 'auto', padding: '8px 16px' }}>
+                            {logs.map((log, i) => (
+                                <div key={i} style={{ marginBottom: '4px', display: 'flex', gap: '8px' }}>
+                                    <span style={{ color: '#444', minWidth: '70px' }}>[{log.timestamp.split('T')[1].split('.')[0]}]</span>
+                                    <span style={{ 
+                                        color: log.type === 'error' ? '#f56565' : 
+                                               log.type === 'warn' ? '#ed8936' : 
+                                               log.type === 'success' ? '#48bb78' : '#cbd5e0'
+                                    }}>
+                                        {log.message}
+                                    </span>
+                                </div>
+                            ))}
+                            {logs.length === 0 && <div style={{ color: '#444' }}>No logs yet...</div>}
+                        </div>
+                    </div>
+                )}
+                {!showLogs && (
+                    <button 
+                        onClick={() => setShowLogs(true)}
+                        style={{
+                            position: 'absolute',
+                            bottom: '10px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            background: '#1a1a1a',
+                            border: '1px solid #333',
+                            color: '#888',
+                            padding: '4px 12px',
+                            borderRadius: '20px',
+                            fontSize: '10px',
+                            cursor: 'pointer',
+                            zIndex: 10
+                        }}
+                    >
+                        SHOW LOGS
+                    </button>
+                )}
+            </div>
+
+            {/* Node Settings with Visible Resizer */}
+            <div style={{ width: settingsWidth, display: 'flex', position: 'relative', borderLeft: '1px solid #222' }}>
+                <div 
+                    onMouseDown={startResizingRight}
+                    style={{ 
+                        position: 'absolute',
+                        left: '-5px',
+                        top: 0,
+                        bottom: 0,
+                        width: '10px',
+                        cursor: 'col-resize',
+                        zIndex: 100,
+                        backgroundColor: 'transparent'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(49, 130, 206, 0.2)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                />
+                <div style={{ flexGrow: 1, minWidth: 0, height: '100%' }}>
+                    <NodeSettings selectedNode={selectedNode} onUpdate={onUpdateNode} />
+                </div>
+            </div>
         </div>
     );
 };
