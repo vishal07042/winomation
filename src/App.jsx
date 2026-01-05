@@ -12,7 +12,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import { TriggerNode, ConditionNode, ActionNode } from './renderer/nodes';
-import { CATALOG, NODE_TYPES, PARAM_TYPES } from './common/nodeDefinitions';
+import { CATALOG, NODE_TYPES, PARAM_TYPES, CATEGORIES } from './common/nodeDefinitions';
 
 const initialNodes = [];
 const initialEdges = [];
@@ -28,8 +28,8 @@ const SearchableSelect = ({ options, value, onChange, placeholder }) => {
     const containerRef = useRef(null);
 
     // Helper to get label and value from option (which can be string or object)
-    const getLabel = (opt) => (typeof opt === 'object' ? opt.label : opt);
-    const getValue = (opt) => (typeof opt === 'object' ? opt.value : opt);
+    const getLabel = (opt) => (typeof opt === 'object' ? (opt.label || '') : (opt || ''));
+    const getValue = (opt) => (typeof opt === 'object' ? (opt.value || '') : (opt || ''));
 
     const filteredOptions = options.filter(opt => 
         getLabel(opt).toLowerCase().includes(search.toLowerCase())
@@ -274,7 +274,8 @@ const NodeSettings = ({ selectedNode, onUpdate }) => {
 };
 
 const onDragStart = (event, nodeData, category) => {
-    event.dataTransfer.setData('application/reactflow', JSON.stringify({ ...nodeData, category }));
+    const flowType = nodeData.logicType || category;
+    event.dataTransfer.setData('application/reactflow', JSON.stringify({ ...nodeData, category: flowType }));
     event.dataTransfer.effectAllowed = 'move';
     
     // Add visual drag effect
@@ -323,8 +324,8 @@ const CategoryGroup = ({ title, children }) => {
 const Section = ({ title, items, category, color, searchTerm }) => {
     const filtered = items.filter(i => 
         !searchTerm || 
-        i.label.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        i.category.toLowerCase().includes(searchTerm.toLowerCase())
+        (i.label && i.label.toLowerCase().includes(searchTerm.toLowerCase())) || 
+        (i.category && i.category.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     if (filtered.length === 0) return null;
@@ -381,10 +382,33 @@ const Sidebar = () => {
     return (
         <aside style={{ height: '100%', background: 'var(--bg-panel)', padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
             <div style={{ marginBottom: '32px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 20px 0', letterSpacing: '-0.5px' }}>
-                    Winomation
-                    <span style={{ color: 'var(--accent-primary)' }}>.</span>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0', letterSpacing: '-0.5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        Winomation
+                        <span style={{ color: 'var(--accent-primary)' }}>.</span>
+                    </div>
+                    <button 
+                        onClick={async () => {
+                            const res = await window.electronAPI.installMitmCert();
+                            alert(res.message || res.error);
+                        }}
+                        title="Install MITM Certificate"
+                        style={{ 
+                            background: 'transparent', 
+                            border: '1px solid var(--border-color)', 
+                            color: 'var(--text-secondary)', 
+                            fontSize: '14px', 
+                            cursor: 'pointer',
+                            padding: '4px 8px',
+                            borderRadius: '6px'
+                        }}
+                    >
+                        🛡️
+                    </button>
                 </h2>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                    MITM Proxy: <span style={{ color: '#f6e05e' }}>8080</span>
+                </div>
                 <input 
                     type="text" 
                     className="modern-input"
@@ -394,9 +418,20 @@ const Sidebar = () => {
                 />
             </div>
             
-            <Section title="Triggers" items={CATALOG.triggers} category={NODE_TYPES.TRIGGER} color="var(--trigger-color)" searchTerm={searchTerm} />
-            <Section title="Conditions" items={CATALOG.conditions} category={NODE_TYPES.CONDITION} color="var(--condition-color)" searchTerm={searchTerm} />
-            <Section title="Actions" items={CATALOG.actions} category={NODE_TYPES.ACTION} color="var(--action-color)" searchTerm={searchTerm} />
+            <Section title="Triggers" items={CATALOG.triggers.filter(i => i.category !== CATEGORIES.MITM)} category={NODE_TYPES.TRIGGER} color="var(--trigger-color)" searchTerm={searchTerm} />
+            <Section title="Conditions" items={CATALOG.conditions.filter(i => i.category !== CATEGORIES.MITM)} category={NODE_TYPES.CONDITION} color="var(--condition-color)" searchTerm={searchTerm} />
+            <Section title="Actions" items={CATALOG.actions.filter(i => i.category !== CATEGORIES.MITM)} category={NODE_TYPES.ACTION} color="var(--action-color)" searchTerm={searchTerm} />
+            <Section 
+                title="Mitm Flow" 
+                items={[
+                    ...CATALOG.triggers.filter(i => i.category === CATEGORIES.MITM).map(i => ({...i, logicType: NODE_TYPES.TRIGGER})),
+                    ...CATALOG.conditions.filter(i => i.category === CATEGORIES.MITM).map(i => ({...i, logicType: NODE_TYPES.CONDITION})),
+                    ...CATALOG.actions.filter(i => i.category === CATEGORIES.MITM).map(i => ({...i, logicType: NODE_TYPES.ACTION}))
+                ]} 
+                category="mitm" 
+                color="#f6e05e" 
+                searchTerm={searchTerm} 
+            />
         </aside>
     );
 };

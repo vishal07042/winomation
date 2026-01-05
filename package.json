@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "description": "My Electron application description",
   "main": ".vite/build/main.js",
- 
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -31,6 +30,7 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
+    "http-mitm-proxy": "^1.1.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "reactflow": "^11.11.4"

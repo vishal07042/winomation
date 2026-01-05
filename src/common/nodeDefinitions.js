@@ -11,7 +11,8 @@ export const CATEGORIES = {
     FILE: 'File',
     POWER: 'Power',
     LOGIC: 'Logic',
-    APP: 'App'
+    APP: 'App',
+    MITM: 'Mitm'
 };
 
 export const PARAM_TYPES = {
@@ -99,12 +100,31 @@ export const CATALOG = {
         
         // Power
         { 
-            type: 'battery_low', 
-            category: CATEGORIES.POWER, 
-            label: 'Battery Low', 
-            icon: '🔋', 
+            type: 'battery_level',
+            category: CATEGORIES.POWER,
+            label: 'Battery Level',
+            icon: '🔋',
             params: { threshold: 20 },
             paramTypes: { threshold: PARAM_TYPES.NUMBER }
+        },
+        // Mitm
+        {
+            type: 'mitm_request',
+            category: CATEGORIES.MITM,
+            label: 'On Request Intercept',
+            icon: '🌐',
+            params: {},
+            paramTypes: {},
+            description: 'Triggers when an HTTP/HTTPS request is intercepted by the proxy.'
+        },
+        {
+            type: 'mitm_response',
+            category: CATEGORIES.MITM,
+            label: 'On Response Intercept',
+            icon: '📥',
+            params: {},
+            paramTypes: {},
+            description: 'Triggers when an HTTP/HTTPS response is intercepted by the proxy.'
         }
     ],
     conditions: [
@@ -132,13 +152,46 @@ export const CATALOG = {
             params: { text: '' },
             paramTypes: { text: PARAM_TYPES.TEXT }
         },
+
+        // Mitm
         {
-            type: 'is_online',
-            category: CATEGORIES.SYSTEM,
-            label: 'Is Online',
-            icon: '📶',
+            type: 'mitm_is_running',
+            category: CATEGORIES.MITM,
+            label: 'Proxy is Running',
+            icon: '⚙️',
             params: {},
-            paramTypes: {}
+            paramTypes: {},
+            description: 'Checks if the MITM proxy server is currently active.'
+        },
+        {
+            type: 'mitm_url_match',
+            category: CATEGORIES.MITM,
+            label: 'URL Contains',
+            icon: '🔗',
+            params: { keyword: 'api.example.com' },
+            paramTypes: { keyword: PARAM_TYPES.TEXT },
+            placeholders: { keyword: 'e.g. google.com' },
+            description: 'Matches if the intercepted URL contains the specified keyword.'
+        },
+        {
+            type: 'mitm_body_match',
+            category: CATEGORIES.MITM,
+            label: 'Body Contains',
+            icon: '📄',
+            params: { text: '"status":"success"' },
+            paramTypes: { text: PARAM_TYPES.TEXT },
+            placeholders: { text: 'e.g. {"error": false}' },
+            description: 'Matches if the request/response body contains the specified text.'
+        },
+        {
+            type: 'mitm_status_match',
+            category: CATEGORIES.MITM,
+            label: 'Status Code Is',
+            icon: '🔢',
+            params: { status: 200 },
+            paramTypes: { status: PARAM_TYPES.NUMBER },
+            placeholders: { status: 'e.g. 200, 404, 500' },
+            description: 'Matches if the response status code equals the specified value. Example: 200, 404, 500'
         }
     ],
     actions: [
@@ -257,13 +310,93 @@ export const CATALOG = {
             params: { keys: '' },
             paramTypes: { keys: PARAM_TYPES.TEXT }
         },
+
+        // Mitm
         {
-            type: 'set_clipboard',
-            category: CATEGORIES.INPUT,
-            label: 'Set Clipboard',
-            icon: '📋',
-            params: { text: '' },
-            paramTypes: { text: PARAM_TYPES.TEXT }
+            type: 'mitm_start',
+            category: CATEGORIES.MITM,
+            label: 'Start MITM Proxy',
+            icon: '🟢',
+            params: { port: 8080, host: 'localhost' },
+            paramTypes: { port: PARAM_TYPES.NUMBER, host: PARAM_TYPES.TEXT },
+            placeholders: { port: '8080', host: 'localhost or 0.0.0.0' },
+            description: 'Starts the MITM proxy server. Example: port 8080, host 0.0.0.0'
+        },
+        {
+            type: 'mitm_stop',
+            category: CATEGORIES.MITM,
+            label: 'Stop MITM Proxy',
+            icon: '🛑',
+            params: {},
+            paramTypes: {},
+            description: 'Stops the running MITM proxy server.'
+        },
+        {
+            type: 'mitm_generate_cert',
+            category: CATEGORIES.MITM,
+            label: 'Generate Certificate',
+            icon: '📜',
+            params: {},
+            paramTypes: {},
+            description: 'Generates a new Root CA certificate for HTTPS interception.'
+        },
+        {
+            type: 'mitm_install_cert',
+            category: CATEGORIES.MITM,
+            label: 'Install Certificate',
+            icon: '🛡️',
+            params: {},
+            paramTypes: {},
+            description: 'Installs the Root CA certificate to the Windows system store.'
+        },
+        {
+            type: 'mitm_block',
+            category: CATEGORIES.MITM,
+            label: 'Block Request',
+            icon: '🚫',
+            params: {},
+            paramTypes: {},
+            description: 'Drops the intercepted request and returns a 403 Forbidden error.'
+        },
+        {
+            type: 'mitm_modify_body',
+            category: CATEGORIES.MITM,
+            label: 'Replace in Body',
+            icon: '✍️',
+            params: { search: 'old_value', replace: 'new_value' },
+            paramTypes: { search: PARAM_TYPES.TEXT, replace: PARAM_TYPES.TEXT },
+            placeholders: { search: 'Text to find', replace: 'New replacement text' },
+            description: 'Replaces occurrences of search text with replace text in the body.'
+        },
+        {
+            type: 'mitm_set_status',
+            category: CATEGORIES.MITM,
+            label: 'Change Status',
+            icon: '⚡',
+            params: { status: 200 },
+            paramTypes: { status: PARAM_TYPES.NUMBER },
+            placeholders: { status: 'e.g. 200, 404, 500' },
+            description: 'Changes the response status code. Example: 200, 404, 500'
+        },
+        {
+            type: 'mitm_drop_header',
+            category: CATEGORIES.MITM,
+            label: 'Remove Header',
+            icon: '✂️',
+            params: { header: 'Authorization' },
+            paramTypes: { header: PARAM_TYPES.TEXT },
+            placeholders: { header: 'e.g. User-Agent' },
+            description: 'Removes the specified HTTP header from the request/response.'
+        },
+        {
+            type: 'mitm_set_json_field',
+            category: CATEGORIES.MITM,
+            label: 'Set JSON Field',
+            icon: '🧩',
+            params: { path: 'user.is_premium', value: 'true' },
+            paramTypes: { path: PARAM_TYPES.TEXT, value: PARAM_TYPES.TEXT },
+            placeholders: { path: 'user.role', value: 'admin' },
+            description: 'Modifies a field in a JSON body using dot notation for paths.'
         }
     ]
 };

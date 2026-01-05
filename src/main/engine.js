@@ -1,8 +1,9 @@
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { app, Notification, BrowserWindow, screen, clipboard } from 'electron';
 import Logger from './Logger';
+import MitmController from '../MitmEngine/MitmController';
 
 class AutomationEngine {
     constructor() {
@@ -50,6 +51,11 @@ class AutomationEngine {
                     return this.systemPower(params);
                 case 'file_op':
                     return this.fileOperation(params);
+                case 'mitm_start':
+                case 'mitm_stop':
+                case 'mitm_generate_cert':
+                case 'mitm_install_cert':
+                    return MitmController.executeMitmAction({ data: { type, params } }, null, 'main');
                 default:
                     Logger.warn(`Action type ${type} not fully implemented yet.`);
                     return { success: false, error: 'Not implemented' };
@@ -74,6 +80,8 @@ class AutomationEngine {
                     return this.checkClipboard(params.text);
                 case 'is_online':
                     return this.checkOnline();
+                case 'mitm_is_running':
+                    return MitmController.isRunning;
                 default:
                     return true;
             }
@@ -297,15 +305,31 @@ $Bitmap.Save('${filePath}')
     }
 
     async invokeAHK(type, params) {
-        const payload = JSON.stringify({ type, ...params }).replace(/"/g, '\\"');
+        const payload = JSON.stringify({ type, ...params });
         const ahkExe = path.join(this.basePath, 'AutoHotkey64.exe');
+        
+        if (!fs.existsSync(ahkExe)) {
+            Logger.error(`AHK Executable not found at: ${ahkExe}`);
+            return { success: false, error: `AHK Executable not found at: ${ahkExe}` };
+        }
+
+        Logger.info(`Invoking AHK: ${ahkExe} with payload: ${payload}`);
+
         return new Promise((resolve) => {
-            exec(`"${ahkExe}" "${this.ahkPath}" "${payload}"`, (err, stdout) => {
+            execFile(ahkExe, ['/ErrorStdOut', this.ahkPath, payload], (err, stdout, stderr) => {
+                if (err) {
+                    Logger.error(`AHK execution error: ${err.message}`);
+                    if (stderr) Logger.error(`AHK stderr: ${stderr}`);
+                    resolve({ success: false, error: err.message });
+                    return;
+                }
+
                 try { 
                     const result = JSON.parse(stdout);
                     resolve(result); 
                 } catch (e) { 
-                    resolve({ success: true }); 
+                    Logger.warn(`AHK output was not valid JSON: ${stdout}`);
+                    resolve({ success: true, rawOutput: stdout }); 
                 }
             });
         });

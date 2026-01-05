@@ -16,4 +16,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getWorkflows: () => ipcRenderer.invoke('get-workflows'),
     deleteWorkflow: (name) => ipcRenderer.invoke('delete-workflow', name),
     loadWorkflow: (name) => ipcRenderer.invoke('load-workflow', name),
+    installMitmCert: () => ipcRenderer.invoke('install-mitm-cert'),
 });
