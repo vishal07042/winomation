@@ -249,9 +249,32 @@ $Bitmap.Save('${filePath}')
 	}
 
 	async checkClipboard(text) {
-		// Using electron clipboard
+		if (!text) return false;
+
+		// Using electron clipboard - scans CURRENT active item only
 		const currentText = clipboard.readText();
-		return currentText.includes(text);
+		const cleanCurrent = currentText.toLowerCase();
+		const cleanTarget = text.trim().toLowerCase();
+
+		const match = cleanCurrent.includes(cleanTarget);
+
+		Logger.info(
+			`[Condition] Clipboard Check: Target="${cleanTarget}" | Active Item="${currentText
+				.substring(0, 40)
+				.replace(/\r?\n/g, " ")}..." | Match=${match}`
+		);
+
+		// Warn user if they likely copied a log message, creating a false negative
+		if (
+			!match &&
+			(currentText.includes("[INFO]") || currentText.includes("Checking"))
+		) {
+			Logger.warn(
+				`⚠️ ALERT: Your clipboard contains a LOG message! You likely copied the logs to debug, which overwrote your test word ("${text}"). Please copy "${text}" again.`
+			);
+		}
+
+		return match;
 	}
 
 	async checkOnline() {
@@ -351,10 +374,29 @@ $Bitmap.Save('${filePath}')
 	}
 
 	async checkProcess(name) {
+		if (!name) return false;
+
+		// Handle full paths: get just the filename
+		let procName = path.basename(name);
+
+		// Strip .exe if present for PowerShell Get-Process
+		if (procName.toLowerCase().endsWith(".exe")) {
+			procName = procName.slice(0, -4);
+		}
+
 		return new Promise((resolve) => {
-			exec(`tasklist /FI "IMAGENAME eq ${name}"`, (err, stdout) => {
-				resolve(stdout.includes(name));
-			});
+			exec(
+				`powershell -NoProfile -Command "Get-Process -Name '${procName}' -ErrorAction SilentlyContinue"`,
+				(err, stdout) => {
+					const isRunning = !err && stdout.trim().length > 0;
+					Logger.info(
+						`Checking process '${procName}': ${
+							isRunning ? "Running" : "Not Running"
+						}`
+					);
+					resolve(isRunning);
+				}
+			);
 		});
 	}
 

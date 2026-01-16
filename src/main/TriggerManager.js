@@ -34,6 +34,12 @@ class TriggerManager {
 				break;
 
 			case "app_launch":
+				if (!params.processName) {
+					Logger.warn(
+						`App Launch trigger missing process name in node ${node.id}`
+					);
+					break;
+				}
 				const baseName = path.basename(params.processName);
 				// PowerShell Get-Process uses names without .exe
 				const procNameNoExt = baseName
@@ -113,23 +119,57 @@ class TriggerManager {
 				break;
 
 			case "window_focus":
+				let lastActiveTitle = "";
+				const targetTitle = (params.title || "").toLowerCase();
+
 				const winPoll = setInterval(() => {
-					const safeTitle = (params.title || "").replace(/'/g, "''");
+					// PowerShell script to get the Active Window Title using Win32 API
+					const psScript = `
+						$code = '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);'
+						$type = Add-Type -MemberDefinition $code -Name "Win32Utils" -Namespace Win32 -PassThru -ErrorAction SilentlyContinue
+						if(!$type){ $type = [Win32.Win32Utils] }
+						$hwnd = $type::GetForegroundWindow()
+						$sb = New-Object -TypeName System.Text.StringBuilder -ArgumentList 256
+						$null = $type::GetWindowText($hwnd, $sb, 256)
+						$sb.ToString()
+					`;
+
 					exec(
-						`powershell -NoProfile -Command "Get-Process | Where-Object {$_.MainWindowTitle -like '*${safeTitle}*'} | Select-Object -First 1"`,
+						`powershell -NoProfile -Command "${psScript.replace(/\n/g, "; ")}"`,
 						(err, stdout) => {
-							if (!err && stdout.trim().length > 0) {
-								// De-bounce could be added here, but firing is okay for now
-								Logger.info(`Window focus match: ${safeTitle}`);
-								this.onTriggerFire(
-									node,
-									flow.nodes,
-									flow.edges
-								);
+							if (!err) {
+								const currentTitle = stdout.trim();
+
+								// Check if active window matches target and wasn't already the last active one
+								if (
+									currentTitle
+										.toLowerCase()
+										.includes(targetTitle) &&
+									lastActiveTitle !== currentTitle
+								) {
+									Logger.info(
+										`Window focus detected: "${currentTitle}"`
+									);
+									this.onTriggerFire(
+										node,
+										flow.nodes,
+										flow.edges
+									);
+									lastActiveTitle = currentTitle;
+								}
+								// Reset if focus changes away
+								else if (
+									!currentTitle
+										.toLowerCase()
+										.includes(targetTitle)
+								) {
+									lastActiveTitle = "";
+								}
 							}
 						}
 					);
-				}, 3000);
+				}, 2000); // Check every 2s
+
 				this.activeListeners.set(node.id, {
 					type: "interval",
 					timer: winPoll,
@@ -276,9 +316,9 @@ class TriggerManager {
 				let batteryTriggered = false;
 
 				const batteryChecker = setInterval(() => {
-					// Use PowerShell to get battery status
+					// Use modern PowerShell classes to get battery status
 					exec(
-						'powershell -Command "Get-WmiObject Win32_Battery | Select-Object -ExpandProperty EstimatedChargeRemaining"',
+						'powershell -Command "Get-CimInstance -ClassName Win32_Battery | Select-Object -ExpandProperty EstimatedChargeRemaining"',
 						(err, stdout) => {
 							if (err || !stdout.trim()) return;
 
