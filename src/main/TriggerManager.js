@@ -19,16 +19,17 @@ class TriggerManager {
 
 		switch (type) {
 			case "interval":
-				const timer = setInterval(
-					() => {
-						Logger.info(`[Interval] Firing node ${node.id}`);
-						this.onTriggerFire(node, flow.nodes, flow.edges);
-					},
-					Math.max(
-						1000,
-						(parseFloat(params.minutes) || 1) * 60 * 1000
-					)
+				const intervalSeconds = Math.max(
+					1,
+					parseFloat(params.seconds) || 30
 				);
+				Logger.info(
+					`Interval trigger will fire every ${intervalSeconds} seconds`
+				);
+				const timer = setInterval(() => {
+					Logger.info(`[Interval] Firing node ${node.id}`);
+					this.onTriggerFire(node, flow.nodes, flow.edges);
+				}, intervalSeconds * 1000);
 				this.activeListeners.set(node.id, { type: "interval", timer });
 				break;
 
@@ -196,6 +197,137 @@ class TriggerManager {
 						`Error registering file watcher: ${e.message}`
 					);
 				}
+				break;
+
+			case "schedule":
+				// Trigger at a specific time each day (e.g., "09:00")
+				const scheduledTime = params.time || "09:00";
+				const [hours, minutes] = scheduledTime.split(":").map(Number);
+				let lastTriggered = null;
+
+				const scheduleChecker = setInterval(() => {
+					const now = new Date();
+					const currentHour = now.getHours();
+					const currentMinute = now.getMinutes();
+					const currentDay = now.getDate();
+
+					// Check if it's the scheduled time
+					if (currentHour === hours && currentMinute === minutes) {
+						// Only trigger once per day at this time
+						if (lastTriggered !== currentDay) {
+							Logger.info(
+								`Schedule trigger fired at ${scheduledTime}`
+							);
+							this.onTriggerFire(node, flow.nodes, flow.edges);
+							lastTriggered = currentDay;
+						}
+					}
+				}, 5000); // Check every 5 seconds for precision
+
+				Logger.info(`Schedule trigger set for ${scheduledTime} daily`);
+				this.activeListeners.set(node.id, {
+					type: "interval",
+					timer: scheduleChecker,
+				});
+				break;
+
+			case "net_status":
+				// Monitor network status changes (connected/disconnected)
+				const targetStatus = params.status || "connected";
+				let wasOnline = null;
+
+				const netChecker = setInterval(() => {
+					require("dns").lookup("google.com", (err) => {
+						const isOnline = !err;
+
+						if (wasOnline === null) {
+							wasOnline = isOnline;
+							return;
+						}
+
+						// Detect change
+						if (
+							(targetStatus === "connected" &&
+								isOnline &&
+								!wasOnline) ||
+							(targetStatus === "disconnected" &&
+								!isOnline &&
+								wasOnline)
+						) {
+							Logger.info(
+								`Network status changed to: ${targetStatus}`
+							);
+							this.onTriggerFire(node, flow.nodes, flow.edges);
+						}
+						wasOnline = isOnline;
+					});
+				}, 5000); // Check every 5 seconds
+
+				Logger.info(`Network status trigger set for: ${targetStatus}`);
+				this.activeListeners.set(node.id, {
+					type: "interval",
+					timer: netChecker,
+				});
+				break;
+
+			case "battery_level":
+				// Trigger when battery level drops below threshold
+				const threshold = parseInt(params.threshold) || 20;
+				let batteryTriggered = false;
+
+				const batteryChecker = setInterval(() => {
+					// Use PowerShell to get battery status
+					exec(
+						'powershell -Command "Get-WmiObject Win32_Battery | Select-Object -ExpandProperty EstimatedChargeRemaining"',
+						(err, stdout) => {
+							if (err || !stdout.trim()) return;
+
+							const batteryLevel = parseInt(stdout.trim());
+							if (!isNaN(batteryLevel)) {
+								if (
+									batteryLevel <= threshold &&
+									!batteryTriggered
+								) {
+									Logger.info(
+										`Battery level (${batteryLevel}%) dropped below threshold (${threshold}%)`
+									);
+									this.onTriggerFire(
+										node,
+										flow.nodes,
+										flow.edges
+									);
+									batteryTriggered = true;
+								} else if (batteryLevel > threshold) {
+									// Reset when battery goes above threshold
+									batteryTriggered = false;
+								}
+							}
+						}
+					);
+				}, 60000); // Check every 60 seconds
+
+				Logger.info(
+					`Battery level trigger set for threshold: ${threshold}%`
+				);
+				this.activeListeners.set(node.id, {
+					type: "interval",
+					timer: batteryChecker,
+				});
+				break;
+
+			case "mitm_request":
+			case "mitm_response":
+				// MITM triggers are handled by MitmController (which needs to be made aware of flow)
+				// Here we just register it logically so we don't warn.
+				// The MitmController is typically initialized with flows separately.
+				Logger.info(
+					`MITM trigger registered: ${type}. Execution delegated to MitmController.`
+				);
+				// We don't set a timer listener, but we track it so we can 'clear' it if needed (though clearing is no-op here)
+				this.activeListeners.set(node.id, {
+					type: "mitm",
+					triggerType: type,
+				});
 				break;
 
 			default:

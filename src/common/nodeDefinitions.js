@@ -94,8 +94,10 @@ export const CATALOG = {
 			category: CATEGORIES.TIME,
 			label: "Time Interval",
 			icon: "⏳",
-			params: { minutes: 5 },
-			paramTypes: { minutes: PARAM_TYPES.NUMBER },
+			params: { seconds: 30 },
+			paramTypes: { seconds: PARAM_TYPES.NUMBER },
+			description:
+				"Triggers at regular intervals. Example: 5 for every 5 seconds",
 		},
 
 		// Power
@@ -225,7 +227,7 @@ export const CATALOG = {
 			params: { action: "shutdown" },
 			paramTypes: { action: PARAM_TYPES.SELECT },
 			options: {
-				action: ["shutdown", "restart", "sleep", "lock", "logout"],
+				action: ["shutdown", "restart", "lock", "logout"],
 			},
 		},
 		{

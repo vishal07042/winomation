@@ -180,28 +180,48 @@ $Bitmap.Save('${filePath}')
 		let cmd = "";
 		switch (params.action) {
 			case "shutdown":
-				cmd = "shutdown /s /t 0";
+				// /s = shutdown, /f = force close apps, /t 0 = 0 seconds delay
+				cmd = "shutdown /s /f /t 0";
 				break;
 			case "restart":
-				cmd = "shutdown /r /t 0";
+				// /r = restart, /f = force close apps, /t 0 = 0 seconds delay
+				cmd = "shutdown /r /f /t 0";
 				break;
 			case "sleep":
-				cmd = "rundll32.exe powrprof.dll,SetSuspendState 0,1,0";
+				// Using PowerShell's .NET method for reliable sleep (not hibernate or shutdown)
+				cmd =
+					'powershell -Command "Add-Type -Assembly System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $false, $false)"';
 				break;
 			case "lock":
+				// Lock the workstation immediately
 				cmd = "rundll32.exe user32.dll,LockWorkStation";
 				break;
 			case "logout":
+				// /l = logoff current user
 				cmd = "shutdown /l";
 				break;
 		}
 
-		if (!cmd) return { success: false };
+		if (!cmd) {
+			Logger.warn(`Invalid system power action: ${params.action}`);
+			return { success: false, error: "Invalid action" };
+		}
+
+		Logger.info(`Executing system power action: ${params.action}`);
 
 		return new Promise((resolve) => {
-			exec(cmd, (err) => {
-				if (err) resolve({ success: false, error: err.message });
-				else resolve({ success: true });
+			exec(cmd, (err, stdout, stderr) => {
+				if (err) {
+					Logger.error(
+						`System power action '${params.action}' failed: ${err.message}`
+					);
+					resolve({ success: false, error: err.message });
+				} else {
+					Logger.info(
+						`System power action '${params.action}' executed successfully`
+					);
+					resolve({ success: true });
+				}
 			});
 		});
 	}
