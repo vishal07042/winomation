@@ -6,14 +6,22 @@ import started from 'electron-squirrel-startup';
 import FlowRunner from './main/FlowRunner';
 import Logger from './main/Logger';
 import engine from './main/engine';
+import { Tray, Menu } from 'electron';
 
+
+
+
+
+let tray;
+let mainWindow;
+let isQuitting = false;
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
 
 const createWindow = () => {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     webPreferences: {
@@ -25,6 +33,14 @@ const createWindow = () => {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+
+  mainWindow.on("close", (event) => {
+		if (!isQuitting) {
+			event.preventDefault(); // stop close
+			mainWindow.hide(); // hide instead
+		}
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -60,6 +76,37 @@ const setupAutoRun = () => {
 };
 
 app.whenReady().then(async () => {
+
+    const createTray = () => {
+        const iconPath = path.join(app.getAppPath(), "assets", "tray.ico");
+            tray = new Tray(iconPath); 
+            
+            
+            const menu = Menu.buildFromTemplate([
+				{
+					label: "Show Winomation",
+					click: () => {
+						mainWindow.show();
+					},
+				},
+				
+			]);
+// use .ico on Windows
+        
+
+		tray.setToolTip("Winomation");
+		tray.setContextMenu(menu);
+
+		// Optional: click tray icon to toggle window
+		tray.on("double-click", () => {
+			mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+		});
+	};
+
+  createTray();
+
+
+
   const isAdmin = await checkAdmin();
   if (!isAdmin && !isDev) {
     Logger.warn('Winomation is not running with administrator privileges. Attempting to relaunch as administrator...');
@@ -86,15 +133,20 @@ app.whenReady().then(async () => {
   });
 });
 
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    FlowRunner.stopAll();
-    app.quit();
+    // FlowRunner.stopAll();
+    // app.quit();
   }
 });
 
+app.on("before-quit", (event) => {
+	event.preventDefault();
+});
+
 app.on('will-quit', () => {
-    FlowRunner.stopAll();
+    // FlowRunner.stopAll();
 });
 
 // --- Persistence Helpers ---
